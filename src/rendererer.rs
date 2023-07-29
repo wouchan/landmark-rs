@@ -2,6 +2,9 @@ use std::fs;
 
 use game_loop::winit::{dpi::PhysicalSize, window::Window};
 use sparsey::prelude::*;
+use wgpu::util::DeviceExt;
+
+use crate::model::{Vertex, INDICES, VERTICES};
 
 pub struct Renderer {
     pub size: PhysicalSize<u32>,
@@ -11,6 +14,10 @@ pub struct Renderer {
     pub queue: wgpu::Queue,
     pub config: wgpu::SurfaceConfiguration,
     pub pipeline: wgpu::RenderPipeline,
+    pub vertex_buffer: wgpu::Buffer,
+    pub num_vertices: u32,
+    pub index_buffer: wgpu::Buffer,
+    pub num_indices: u32,
 }
 
 impl Renderer {
@@ -79,7 +86,7 @@ impl Renderer {
             vertex: wgpu::VertexState {
                 module: &shader,
                 entry_point: "vs_main",
-                buffers: &[],
+                buffers: &[Vertex::desc()],
             },
             fragment: Some(wgpu::FragmentState {
                 module: &shader,
@@ -94,6 +101,22 @@ impl Renderer {
 
         surface.configure(&device, &config);
 
+        let vertex_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("Vertex Buffer"),
+            contents: bytemuck::cast_slice(VERTICES),
+            usage: wgpu::BufferUsages::VERTEX,
+        });
+
+        let num_vertices = VERTICES.len() as u32;
+
+        let index_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("Index Buffer"),
+            contents: bytemuck::cast_slice(INDICES),
+            usage: wgpu::BufferUsages::INDEX,
+        });
+
+        let num_indices = INDICES.len() as u32;
+
         Self {
             size,
             surface,
@@ -102,6 +125,10 @@ impl Renderer {
             queue,
             config,
             pipeline,
+            vertex_buffer,
+            num_vertices,
+            index_buffer,
+            num_indices,
         }
     }
 }
@@ -123,7 +150,7 @@ pub fn rendering_sys(renderer: Res<Renderer>) -> Result<(), wgpu::SurfaceError> 
                 view: &view,
                 resolve_target: None,
                 ops: wgpu::Operations {
-                    load: wgpu::LoadOp::Clear(wgpu::Color::GREEN),
+                    load: wgpu::LoadOp::Clear(wgpu::Color::BLACK),
                     store: true,
                 },
             })],
@@ -131,7 +158,9 @@ pub fn rendering_sys(renderer: Res<Renderer>) -> Result<(), wgpu::SurfaceError> 
         });
 
         rpass.set_pipeline(&renderer.pipeline);
-        rpass.draw(0..3, 0..1);
+        rpass.set_vertex_buffer(0, renderer.vertex_buffer.slice(..));
+        rpass.set_index_buffer(renderer.index_buffer.slice(..), wgpu::IndexFormat::Uint16);
+        rpass.draw_indexed(0..renderer.num_indices, 0, 0..1);
     }
 
     renderer.queue.submit(std::iter::once(encoder.finish()));
@@ -147,6 +176,7 @@ pub fn resize_sys(mut renderer: ResMut<Renderer>, mut new_size: ResMut<Option<Ph
             renderer.size = size;
             renderer.config.width = size.width;
             renderer.config.height = size.height;
+
             renderer
                 .surface
                 .configure(&renderer.device, &renderer.config);

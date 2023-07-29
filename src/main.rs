@@ -10,6 +10,7 @@ use sparsey::prelude::*;
 
 mod rendererer;
 use rendererer::*;
+mod model;
 
 #[derive(Debug)]
 struct Game {
