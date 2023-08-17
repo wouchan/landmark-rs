@@ -856,6 +856,7 @@ dependencies = [
  "env_logger",
  "game-loop",
  "glam",
+ "log",
  "pollster",
  "sparsey",
  "wgpu",

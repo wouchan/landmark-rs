@@ -6,6 +6,7 @@ use game_loop::{
         window::{Window, WindowBuilder},
     },
 };
+use model::{Model, INDICES, VERTICES};
 use sparsey::prelude::*;
 
 mod rendererer;
@@ -24,7 +25,17 @@ impl Game {
         let mut world = World::default();
         let mut resources = Resources::default();
 
-        resources.insert(pollster::block_on(Renderer::new(window)));
+        world.register::<Model>();
+
+        let renderer = pollster::block_on(Renderer::new(window));
+
+        world.create((Model::new(
+            &renderer.device,
+            VERTICES.into(),
+            INDICES.into(),
+        ),));
+
+        resources.insert(renderer);
 
         let schedule = Schedule::builder().build();
         schedule.set_up(&mut world);
