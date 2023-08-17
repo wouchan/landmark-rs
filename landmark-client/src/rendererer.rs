@@ -3,7 +3,10 @@ use std::fs;
 use game_loop::winit::{dpi::PhysicalSize, window::Window};
 use sparsey::prelude::*;
 
-use crate::model::{Model, Vertex};
+use crate::{
+    camera::Camera,
+    model::{Model, Vertex},
+};
 
 pub struct Renderer {
     pub size: PhysicalSize<u32>,
@@ -13,10 +16,11 @@ pub struct Renderer {
     pub queue: wgpu::Queue,
     pub config: wgpu::SurfaceConfiguration,
     pub pipeline: wgpu::RenderPipeline,
+    pub camera_bind_group: wgpu::BindGroup,
 }
 
 impl Renderer {
-    pub async fn new(window: &Window) -> Self {
+    pub async fn init(window: &Window) -> (Self, Camera) {
         let size = window.inner_size();
 
         let instance = wgpu::Instance::default();
@@ -56,9 +60,24 @@ impl Renderer {
             ),
         });
 
+        let camera_bind_group_layout =
+            device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+                entries: &[wgpu::BindGroupLayoutEntry {
+                    binding: 0,
+                    visibility: wgpu::ShaderStages::VERTEX,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Uniform,
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                }],
+                label: None,
+            });
+
         let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
             label: None,
-            bind_group_layouts: &[],
+            bind_group_layouts: &[&camera_bind_group_layout],
             push_constant_ranges: &[],
         });
 
@@ -74,6 +93,17 @@ impl Renderer {
             alpha_mode: swapchain_capabilities.alpha_modes[0],
             view_formats: vec![],
         };
+
+        let camera = Camera::new(&device, &config);
+
+        let camera_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+            layout: &camera_bind_group_layout,
+            entries: &[wgpu::BindGroupEntry {
+                binding: 0,
+                resource: camera.buffer.as_entire_binding(),
+            }],
+            label: None,
+        });
 
         let pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
             label: None,
@@ -96,15 +126,19 @@ impl Renderer {
 
         surface.configure(&device, &config);
 
-        Self {
-            size,
-            surface,
-            adapter,
-            device,
-            queue,
-            config,
-            pipeline,
-        }
+        (
+            Self {
+                size,
+                surface,
+                adapter,
+                device,
+                queue,
+                config,
+                pipeline,
+                camera_bind_group,
+            },
+            camera,
+        )
     }
 }
 
@@ -136,6 +170,7 @@ pub fn rendering_sys(
         });
 
         rpass.set_pipeline(&renderer.pipeline);
+        rpass.set_bind_group(0, &renderer.camera_bind_group, &[]);
 
         for model in (&models).iter() {
             rpass.set_vertex_buffer(0, model.vertex_buffer.slice(..));
@@ -151,7 +186,11 @@ pub fn rendering_sys(
 }
 
 /// Reconfigures surface if the resource of type `PhysicalSize` exists.
-pub fn resize_sys(mut renderer: ResMut<Renderer>, mut new_size: ResMut<Option<PhysicalSize<u32>>>) {
+pub fn resize_sys(
+    mut renderer: ResMut<Renderer>,
+    mut camera: ResMut<Camera>,
+    mut new_size: ResMut<Option<PhysicalSize<u32>>>,
+) {
     if let Some(size) = *new_size {
         if size.width > 0 && size.height > 0 {
             renderer.size = size;
@@ -161,6 +200,8 @@ pub fn resize_sys(mut renderer: ResMut<Renderer>, mut new_size: ResMut<Option<Ph
             renderer
                 .surface
                 .configure(&renderer.device, &renderer.config);
+
+            camera.update_view_projection_matrix(&renderer);
         }
 
         *new_size = None;

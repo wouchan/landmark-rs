@@ -1,3 +1,7 @@
+mod camera;
+mod model;
+mod rendererer;
+
 use game_loop::{
     game_loop,
     winit::{
@@ -9,9 +13,7 @@ use game_loop::{
 use model::{Model, INDICES, VERTICES};
 use sparsey::prelude::*;
 
-mod rendererer;
 use rendererer::*;
-mod model;
 
 #[derive(Debug)]
 struct Game {
@@ -27,7 +29,7 @@ impl Game {
 
         world.register::<Model>();
 
-        let renderer = pollster::block_on(Renderer::new(window));
+        let (renderer, camera) = pollster::block_on(Renderer::init(window));
 
         world.create((Model::new(
             &renderer.device,
@@ -36,6 +38,7 @@ impl Game {
         ),));
 
         resources.insert(renderer);
+        resources.insert(camera);
 
         let schedule = Schedule::builder().build();
         schedule.set_up(&mut world);
