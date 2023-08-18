@@ -10,7 +10,7 @@ use game_loop::{
     winit::{
         event::{DeviceEvent, Event, WindowEvent},
         event_loop::EventLoop,
-        window::{CursorGrabMode, Window, WindowBuilder},
+        window::{CursorGrabMode, Fullscreen, Window, WindowBuilder},
     },
 };
 use model::{Model, INDICES, VERTICES};
@@ -117,18 +117,36 @@ impl Game {
             _ => {}
         }
 
+        // Process requests to change the window state.
+        let input_state = self.world.borrow::<UniqueView<InputState>>().unwrap();
+
         // Check if cursor should be captured.
-        if self
-            .world
-            .borrow::<UniqueView<InputState>>()
-            .unwrap()
-            .cursor_captured
-        {
+        if input_state.cursor_captured {
             window.set_cursor_visible(false);
             window.set_cursor_grab(CursorGrabMode::Confined).unwrap();
         } else {
             window.set_cursor_visible(true);
             window.set_cursor_grab(CursorGrabMode::None).unwrap();
+        }
+
+        // Check if fullscreen should be enabled.
+        if input_state.fullscreen {
+            if let None = window.fullscreen() {
+                let monitor = window
+                    .current_monitor()
+                    .expect("Could not get a reference to the current monitor");
+
+                let video_mode = monitor
+                    .video_modes()
+                    .nth(0)
+                    .expect("Could not get a preferred video mode of the current monitor");
+
+                window.set_fullscreen(Some(Fullscreen::Exclusive(video_mode)));
+            }
+        } else {
+            if let Some(_) = window.fullscreen() {
+                window.set_fullscreen(None);
+            }
         }
 
         true

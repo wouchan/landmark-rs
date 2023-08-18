@@ -9,7 +9,7 @@ pub struct Camera {
     pub target: glam::Vec3,
     pub yaw: f32,
     pub pitch: f32,
-    pub fovy: f32,
+    fovy: f32,
     aspect: f32,
     near: f32,
     view_proj: glam::Mat4,

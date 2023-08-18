@@ -7,6 +7,7 @@ use crate::camera::Camera;
 pub struct InputState {
     pub cursor_in_window: bool,
     pub cursor_captured: bool,
+    pub fullscreen: bool,
     pub forward: bool,
     pub backward: bool,
     pub leftward: bool,
@@ -14,12 +15,9 @@ pub struct InputState {
 }
 
 pub fn keyboard_input_sys(event: KeyboardInput, mut input_state: UniqueViewMut<InputState>) {
-    let state = if event.state == ElementState::Pressed {
-        true
-    } else {
-        false
-    };
+    let state = event.state == ElementState::Pressed;
 
+    // Variable for virtual key code if input was not a scan code.
     let mut keycode: Option<VirtualKeyCode> = None;
 
     match event.scancode {
@@ -34,11 +32,15 @@ pub fn keyboard_input_sys(event: KeyboardInput, mut input_state: UniqueViewMut<I
         _ => keycode = event.virtual_keycode,
     }
 
+    // Check virtual key codes.
+    if !state {
+        return;
+    }
+
     if let Some(keycode) = keycode {
         match keycode {
-            VirtualKeyCode::Escape => {
-                input_state.cursor_captured = false;
-            }
+            VirtualKeyCode::Escape => input_state.cursor_captured = false,
+            VirtualKeyCode::F11 => input_state.fullscreen = !input_state.fullscreen,
             _ => {}
         }
     }
