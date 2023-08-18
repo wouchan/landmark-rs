@@ -2,6 +2,7 @@ mod camera;
 mod input;
 mod model;
 mod rendererer;
+mod texture;
 
 use camera::update_camera_sys;
 use game_loop::{

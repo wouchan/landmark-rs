@@ -6,6 +6,7 @@ use shipyard::*;
 use crate::{
     camera::Camera,
     model::{Model, Vertex},
+    texture,
 };
 
 #[derive(Debug, Unique)]
@@ -17,6 +18,7 @@ pub struct Renderer {
     pub queue: wgpu::Queue,
     pub config: wgpu::SurfaceConfiguration,
     pub pipeline: wgpu::RenderPipeline,
+    pub depth_texture: texture::Texture,
     pub camera_bind_group: wgpu::BindGroup,
 }
 
@@ -106,6 +108,9 @@ impl Renderer {
             label: None,
         });
 
+        let depth_texture =
+            texture::Texture::create_depth_texture(&device, &config, "depth_texture");
+
         let pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
             label: None,
             layout: Some(&pipeline_layout),
@@ -120,7 +125,13 @@ impl Renderer {
                 targets: &[Some(swapchain_format.into())],
             }),
             primitive: wgpu::PrimitiveState::default(),
-            depth_stencil: None,
+            depth_stencil: Some(wgpu::DepthStencilState {
+                format: texture::Texture::DEPTH_FORMAT,
+                depth_write_enabled: true,
+                depth_compare: wgpu::CompareFunction::Less,
+                stencil: wgpu::StencilState::default(),
+                bias: wgpu::DepthBiasState::default(),
+            }),
             multisample: wgpu::MultisampleState::default(),
             multiview: None,
         });
@@ -136,6 +147,7 @@ impl Renderer {
                 queue,
                 config,
                 pipeline,
+                depth_texture,
                 camera_bind_group,
             },
             camera,
@@ -167,7 +179,14 @@ pub fn rendering_sys(
                     store: true,
                 },
             })],
-            depth_stencil_attachment: None,
+            depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
+                view: &renderer.depth_texture.view,
+                depth_ops: Some(wgpu::Operations {
+                    load: wgpu::LoadOp::Clear(1.0),
+                    store: true,
+                }),
+                stencil_ops: None,
+            }),
         });
 
         rpass.set_pipeline(&renderer.pipeline);
@@ -186,7 +205,6 @@ pub fn rendering_sys(
     Ok(())
 }
 
-/// Reconfigures surface if the resource of type `PhysicalSize` exists.
 pub fn resize_sys(
     new_size: PhysicalSize<u32>,
     mut renderer: UniqueViewMut<Renderer>,
@@ -200,6 +218,12 @@ pub fn resize_sys(
         renderer
             .surface
             .configure(&renderer.device, &renderer.config);
+
+        renderer.depth_texture = texture::Texture::create_depth_texture(
+            &renderer.device,
+            &renderer.config,
+            "depth_texture",
+        );
 
         camera.update_view_projection_matrix(&renderer);
     }
