@@ -1,4 +1,5 @@
 mod camera;
+mod input;
 mod model;
 mod rendererer;
 
@@ -11,58 +12,47 @@ use game_loop::{
     },
 };
 use model::{Model, INDICES, VERTICES};
-use sparsey::prelude::*;
+use shipyard::*;
 
 use rendererer::*;
 
 #[derive(Debug)]
 struct Game {
     pub world: World,
-    pub resources: Resources,
-    pub schedule: Schedule,
 }
 
 impl Game {
     pub fn new(window: &Window) -> Self {
-        let mut world = World::default();
-        let mut resources = Resources::default();
-
-        world.register::<Model>();
+        let mut world = World::new();
 
         let (renderer, camera) = pollster::block_on(Renderer::init(window));
 
-        world.create((Model::new(
+        world.add_entity(Model::new(
             &renderer.device,
             VERTICES.into(),
             INDICES.into(),
-        ),));
+        ));
 
-        resources.insert(renderer);
-        resources.insert(camera);
+        world.add_unique(renderer);
+        world.add_unique(camera);
 
-        let schedule = Schedule::builder().build();
-        schedule.set_up(&mut world);
+        Workload::new("update").add_to_world(&world).unwrap();
 
-        Self {
-            world,
-            resources,
-            schedule,
-        }
+        Self { world }
     }
 
     pub fn update(&mut self) {
-        self.schedule.run(&mut self.world, &mut self.resources);
+        self.world.run_workload("update").unwrap();
     }
 
     /// Renders a frame and returns false on exit.
     pub fn render(&mut self) -> bool {
-        match sparsey::run_local(&self.world, &self.resources, rendering_sys) {
+        match self.world.run(rendering_sys) {
             Ok(()) => {}
             // Reconfigure the surface if lost
             Err(wgpu::SurfaceError::Lost) => {
-                let size = { self.resources.borrow::<Renderer>().size };
-                self.resources.insert(Some(size));
-                sparsey::run_local(&mut self.world, &mut self.resources, resize_sys);
+                let size = { self.world.borrow::<UniqueView<Renderer>>().unwrap().size };
+                self.world.run_with_data(resize_sys, size);
             }
             // The system is out of memory, we should probably quit
             Err(wgpu::SurfaceError::OutOfMemory) => return false,
@@ -81,16 +71,15 @@ impl Game {
                     return false;
                 }
                 WindowEvent::Resized(physical_size) => {
-                    self.resources.insert(Some(*physical_size));
-                    sparsey::run_local(&mut self.world, &mut self.resources, resize_sys);
+                    self.world.run_with_data(resize_sys, *physical_size);
                 }
                 WindowEvent::ScaleFactorChanged { new_inner_size, .. } => {
                     // new_inner_size is &&mut so we have to dereference it twice
-                    self.resources.insert(Some(**new_inner_size));
-                    sparsey::run_local(&mut self.world, &mut self.resources, resize_sys);
+                    self.world.run_with_data(resize_sys, **new_inner_size);
                 }
                 _ => {}
             },
+            Event::DeviceEvent { event, .. } => {}
             _ => {}
         }
 

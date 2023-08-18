@@ -1,13 +1,14 @@
 use std::fs;
 
 use game_loop::winit::{dpi::PhysicalSize, window::Window};
-use sparsey::prelude::*;
+use shipyard::*;
 
 use crate::{
     camera::Camera,
     model::{Model, Vertex},
 };
 
+#[derive(Debug, Unique)]
 pub struct Renderer {
     pub size: PhysicalSize<u32>,
     pub surface: wgpu::Surface,
@@ -143,8 +144,8 @@ impl Renderer {
 }
 
 pub fn rendering_sys(
-    renderer: Res<Renderer>,
-    models: Comp<Model>,
+    renderer: UniqueView<Renderer>,
+    models: View<Model>,
 ) -> Result<(), wgpu::SurfaceError> {
     let output = renderer.surface.get_current_texture()?;
     let view = output
@@ -172,7 +173,7 @@ pub fn rendering_sys(
         rpass.set_pipeline(&renderer.pipeline);
         rpass.set_bind_group(0, &renderer.camera_bind_group, &[]);
 
-        for model in (&models).iter() {
+        for model in models.iter() {
             rpass.set_vertex_buffer(0, model.vertex_buffer.slice(..));
             rpass.set_index_buffer(model.index_buffer.slice(..), wgpu::IndexFormat::Uint16);
             rpass.draw_indexed(0..(model.indices.len() as u32), 0, 0..1);
@@ -187,23 +188,19 @@ pub fn rendering_sys(
 
 /// Reconfigures surface if the resource of type `PhysicalSize` exists.
 pub fn resize_sys(
-    mut renderer: ResMut<Renderer>,
-    mut camera: ResMut<Camera>,
-    mut new_size: ResMut<Option<PhysicalSize<u32>>>,
+    new_size: PhysicalSize<u32>,
+    mut renderer: UniqueViewMut<Renderer>,
+    mut camera: UniqueViewMut<Camera>,
 ) {
-    if let Some(size) = *new_size {
-        if size.width > 0 && size.height > 0 {
-            renderer.size = size;
-            renderer.config.width = size.width;
-            renderer.config.height = size.height;
+    if new_size.width > 0 && new_size.height > 0 {
+        renderer.size = new_size;
+        renderer.config.width = new_size.width;
+        renderer.config.height = new_size.height;
 
-            renderer
-                .surface
-                .configure(&renderer.device, &renderer.config);
+        renderer
+            .surface
+            .configure(&renderer.device, &renderer.config);
 
-            camera.update_view_projection_matrix(&renderer);
-        }
-
-        *new_size = None;
+        camera.update_view_projection_matrix(&renderer);
     }
 }

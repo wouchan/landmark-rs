@@ -1,8 +1,9 @@
+use shipyard::*;
 use wgpu::util::DeviceExt;
 
 use crate::rendererer::Renderer;
 
-#[derive(Debug)]
+#[derive(Debug, Unique)]
 pub struct Camera {
     eye: glam::Vec3,
     target: glam::Vec3,

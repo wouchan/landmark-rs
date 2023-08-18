@@ -12,6 +12,6 @@ glam = { version = "0.24.1", features = ["bytemuck"] }
 pollster = "0.3.0"
 wgpu = "0.17.0"
 
-sparsey = { workspace = true }
+shipyard = { workspace = true }
 env_logger = { workspace = true }
 log = { workspace = true }

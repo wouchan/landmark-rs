@@ -1,3 +1,4 @@
+use shipyard::*;
 use wgpu::util::DeviceExt;
 
 pub const VERTICES: &[Vertex] = &[
@@ -45,6 +46,7 @@ impl Vertex {
     }
 }
 
+#[derive(Debug, Component)]
 pub struct Model {
     pub vertices: Vec<Vertex>,
     pub indices: Vec<u16>,
