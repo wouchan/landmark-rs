@@ -13,6 +13,6 @@ landmark-client = { path = "landmark-client" }
 clap = "4.3.21"
 
 [workspace.dependencies]
-shipyard = "0.6.2"
+shipyard = { version = "0.6.2", features = ["thread_local"] }
 env_logger = "0.10.0"
 log = "0.4.20"

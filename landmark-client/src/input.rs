@@ -12,6 +12,8 @@ pub struct InputState {
     pub backward: bool,
     pub leftward: bool,
     pub rightward: bool,
+    pub upward: bool,
+    pub downward: bool,
 }
 
 pub fn keyboard_input_sys(event: KeyboardInput, mut input_state: UniqueViewMut<InputState>) {
@@ -29,6 +31,11 @@ pub fn keyboard_input_sys(event: KeyboardInput, mut input_state: UniqueViewMut<I
         30 => input_state.leftward = state,
         // D
         32 => input_state.rightward = state,
+        // LShift
+        42 => input_state.downward = state,
+        // Space
+        57 => input_state.upward = state,
+        // Other - process as virtual code
         _ => keycode = event.virtual_keycode,
     }
 
@@ -90,7 +97,7 @@ pub fn mouse_button_sys(button: &MouseButton, mut input_state: UniqueViewMut<Inp
 }
 
 pub fn move_player_sys(input_state: UniqueView<InputState>, mut camera: UniqueViewMut<Camera>) {
-    const MOVEMENT_SPEED: f32 = 0.005;
+    const MOVEMENT_SPEED: f32 = 0.05;
 
     if !input_state.cursor_captured {
         return;
@@ -112,6 +119,14 @@ pub fn move_player_sys(input_state: UniqueView<InputState>, mut camera: UniqueVi
 
     if input_state.rightward {
         movement.x += 1.0;
+    }
+
+    if input_state.upward {
+        movement.y += 1.0;
+    }
+
+    if input_state.downward {
+        movement.y -= 1.0;
     }
 
     if movement != glam::Vec3::ZERO {

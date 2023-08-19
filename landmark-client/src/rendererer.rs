@@ -1,5 +1,3 @@
-use std::fs;
-
 use game_loop::winit::{dpi::PhysicalSize, window::Window};
 use shipyard::*;
 
@@ -7,6 +5,7 @@ use crate::{
     camera::Camera,
     model::{Model, Vertex},
     texture,
+    transform::RawTransform,
 };
 
 #[derive(Debug, Unique)]
@@ -57,7 +56,7 @@ impl Renderer {
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: None,
             source: wgpu::ShaderSource::Wgsl(
-                fs::read_to_string("res/shaders/shader.wgsl")
+                std::fs::read_to_string("res/shaders/shader.wgsl")
                     .expect("Could not load the standard shader")
                     .into(),
             ),
@@ -117,14 +116,25 @@ impl Renderer {
             vertex: wgpu::VertexState {
                 module: &shader,
                 entry_point: "vs_main",
-                buffers: &[Vertex::desc()],
+                buffers: &[Vertex::desc(), RawTransform::desc()],
             },
             fragment: Some(wgpu::FragmentState {
                 module: &shader,
                 entry_point: "fs_main",
                 targets: &[Some(swapchain_format.into())],
             }),
-            primitive: wgpu::PrimitiveState::default(),
+            primitive: wgpu::PrimitiveState {
+                topology: wgpu::PrimitiveTopology::TriangleList,
+                strip_index_format: None,
+                front_face: wgpu::FrontFace::Ccw,
+                cull_mode: Some(wgpu::Face::Back),
+                // Setting this to anything other than Fill requires Features::NON_FILL_POLYGON_MODE
+                polygon_mode: wgpu::PolygonMode::Fill,
+                // Requires Features::DEPTH_CLIP_CONTROL
+                unclipped_depth: false,
+                // Requires Features::CONSERVATIVE_RASTERIZATION
+                conservative: false,
+            },
             depth_stencil: Some(wgpu::DepthStencilState {
                 format: texture::Texture::DEPTH_FORMAT,
                 depth_write_enabled: true,
@@ -194,8 +204,9 @@ pub fn rendering_sys(
 
         for model in models.iter() {
             rpass.set_vertex_buffer(0, model.vertex_buffer.slice(..));
+            rpass.set_vertex_buffer(1, model.instance_buffer.slice(..));
             rpass.set_index_buffer(model.index_buffer.slice(..), wgpu::IndexFormat::Uint16);
-            rpass.draw_indexed(0..(model.indices.len() as u32), 0, 0..1);
+            rpass.draw_indexed(0..model.index_count(), 0, 0..1);
         }
     }
 

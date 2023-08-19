@@ -1,8 +1,12 @@
 mod camera;
+mod color;
+mod game_map;
 mod input;
+mod mesher;
 mod model;
 mod rendererer;
 mod texture;
+mod transform;
 
 use camera::update_camera_sys;
 use game_loop::{
@@ -13,7 +17,9 @@ use game_loop::{
         window::{CursorGrabMode, Fullscreen, Window, WindowBuilder},
     },
 };
-use model::{Model, INDICES, VERTICES};
+use game_map::{mesh_missing_chunks_sys, GameMap};
+use mesher::{chunk_mesher_loop, MeshRequestsSender};
+use model::{update_models_sys, ConstructedModelsReceiver};
 use shipyard::*;
 
 use input::*;
@@ -25,28 +31,38 @@ struct Game {
 }
 
 impl Game {
-    pub fn new(window: &Window) -> Self {
+    pub fn init(window: &Window) -> Self {
         let mut world = World::new();
 
         let (renderer, camera) = pollster::block_on(Renderer::init(window));
 
-        world.add_entity(Model::new(
-            &renderer.device,
-            VERTICES.into(),
-            INDICES.into(),
-        ));
+        let game_map = GameMap::new_test(&mut world);
 
         world.add_unique(renderer);
         world.add_unique(camera);
+        world.add_unique(game_map);
         world.add_unique(InputState::default());
+
+        // TODO: simplify meshing
+        let (mesh_requests_sender, chunk_mesh_requests_receiver) = MeshRequestsSender::init();
+        let (constructed_models_receiver, constructed_chunk_sender) =
+            ConstructedModelsReceiver::init();
+
+        world.add_unique_non_sync(mesh_requests_sender);
+        world.add_unique_non_sync(constructed_models_receiver);
+        std::thread::spawn(|| {
+            chunk_mesher_loop(chunk_mesh_requests_receiver, constructed_chunk_sender)
+        });
 
         Workload::new("update")
             .with_system(move_player_sys)
+            .with_system(mesh_missing_chunks_sys)
             .add_to_world(&world)
             .unwrap();
 
         Workload::new("render")
             .with_system(update_camera_sys)
+            .with_system(update_models_sys)
             .add_to_world(&world)
             .unwrap();
 
@@ -162,7 +178,7 @@ pub fn run() {
         .build(&event_loop)
         .expect("Failed to create a window");
 
-    let game = Game::new(&window);
+    let game = Game::init(&window);
 
     game_loop(
         event_loop,
