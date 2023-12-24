@@ -573,9 +573,9 @@ checksum = "aa9a19cbb55df58761df49b23516a86d432839add4af60fc256da840f66ed35b"
 
 [[package]]
 name = "game-loop"
-version = "0.10.2"
+version = "1.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d96fac7dbca77aeb9f72968756770bdba2063a016166fa130d99232a8988bc36"
+checksum = "70bb1e77782202c6936f53fe0db73db074f194486934b795b1b5495c1d9c1f50"
 dependencies = [
  "wasm-bindgen",
  "web-sys",
@@ -601,9 +601,9 @@ checksum = "b6c80984affa11d98d1b88b66ac8853f143217b399d3c74116778ff8fdb4ed2e"
 
 [[package]]
 name = "glam"
-version = "0.24.1"
+version = "0.25.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "42218cb640844e3872cc3c153dc975229e080a6c4733b34709ef445610550226"
+checksum = "151665d9be52f9bb40fc7966565d39666f2d1e69233571b71b87791c7e0528b3"
 dependencies = [
  "bytemuck",
 ]

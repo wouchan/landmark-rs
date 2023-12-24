@@ -28,10 +28,10 @@ impl GameMap {
                     for bx in 0..32 {
                         let mut max_y = if (cx + cz) % 2 == 0 { 3 } else { 2 };
 
-                        if bx >= 3 && bx <= Chunk::SIZE - 3 {
-                            if bz >= 3 && bz <= Chunk::SIZE - 3 {
-                                max_y += 1;
-                            }
+                        if (3..=Chunk::SIZE - 3).contains(&bx)
+                            && (3..=Chunk::SIZE - 3).contains(&bz)
+                        {
+                            max_y += 1;
                         }
 
                         for by in 0..max_y {
@@ -169,65 +169,59 @@ pub fn mesh_missing_chunks_sys(
         let requested_chunk = game_map.chunks.get(&requested_coords).unwrap().clone();
 
         // TODO: this segment could be simplified a bit
-        let neg_x_adj = if let Some(adj) = game_map.chunks.get(&ChunkCoords::new(
-            requested_coords.x - 1,
-            requested_coords.y,
-            requested_coords.z,
-        )) {
-            Some(adj.clone())
-        } else {
-            None
-        };
+        let neg_x_adj = game_map
+            .chunks
+            .get(&ChunkCoords::new(
+                requested_coords.x - 1,
+                requested_coords.y,
+                requested_coords.z,
+            ))
+            .cloned();
 
-        let pos_x_adj = if let Some(adj) = game_map.chunks.get(&ChunkCoords::new(
-            requested_coords.x + 1,
-            requested_coords.y,
-            requested_coords.z,
-        )) {
-            Some(adj.clone())
-        } else {
-            None
-        };
+        let pos_x_adj = game_map
+            .chunks
+            .get(&ChunkCoords::new(
+                requested_coords.x + 1,
+                requested_coords.y,
+                requested_coords.z,
+            ))
+            .cloned();
 
-        let neg_y_adj = if let Some(adj) = game_map.chunks.get(&ChunkCoords::new(
-            requested_coords.x,
-            requested_coords.y - 1,
-            requested_coords.z,
-        )) {
-            Some(adj.clone())
-        } else {
-            None
-        };
+        let neg_y_adj = game_map
+            .chunks
+            .get(&ChunkCoords::new(
+                requested_coords.x,
+                requested_coords.y - 1,
+                requested_coords.z,
+            ))
+            .cloned();
 
-        let pos_y_adj = if let Some(adj) = game_map.chunks.get(&ChunkCoords::new(
-            requested_coords.x,
-            requested_coords.y + 1,
-            requested_coords.z,
-        )) {
-            Some(adj.clone())
-        } else {
-            None
-        };
+        let pos_y_adj = game_map
+            .chunks
+            .get(&ChunkCoords::new(
+                requested_coords.x,
+                requested_coords.y + 1,
+                requested_coords.z,
+            ))
+            .cloned();
 
-        let neg_z_adj = if let Some(adj) = game_map.chunks.get(&ChunkCoords::new(
-            requested_coords.x,
-            requested_coords.y,
-            requested_coords.z - 1,
-        )) {
-            Some(adj.clone())
-        } else {
-            None
-        };
+        let neg_z_adj = game_map
+            .chunks
+            .get(&ChunkCoords::new(
+                requested_coords.x,
+                requested_coords.y,
+                requested_coords.z - 1,
+            ))
+            .cloned();
 
-        let pos_z_adj = if let Some(adj) = game_map.chunks.get(&ChunkCoords::new(
-            requested_coords.x,
-            requested_coords.y,
-            requested_coords.z + 1,
-        )) {
-            Some(adj.clone())
-        } else {
-            None
-        };
+        let pos_z_adj = game_map
+            .chunks
+            .get(&ChunkCoords::new(
+                requested_coords.x,
+                requested_coords.y,
+                requested_coords.z + 1,
+            ))
+            .cloned();
 
         let request = MeshChunkRequest {
             requested_coords,

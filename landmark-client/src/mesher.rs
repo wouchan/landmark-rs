@@ -132,7 +132,7 @@ impl ModelConstructorChunkExt for ModelConstructor {
             0
         };
 
-        self.indices.push(start_index + 0);
+        self.indices.push(start_index);
         self.indices.push(start_index + 1);
         self.indices.push(start_index + 2);
         self.indices.push(start_index + 2);
@@ -202,116 +202,116 @@ fn generate_visibility_map(request: &MeshChunkRequest) -> FaceVisibilityMap {
             for x in 0..Chunk::SIZE {
                 // TODO: This function should check transparency of adjacent blocks
                 let coords = InnerChunkCoords::new(x, y, z);
-                if let None = request.requested_chunk.get_block(coords) {
+                if request.requested_chunk.get_block(coords).is_none() {
                     continue;
                 }
 
                 // PosX
                 if x == Chunk::SIZE - 1 {
                     if let Some(ref adjacents) = request.pos_x_adj {
-                        if let None = adjacents.get_block(InnerChunkCoords::new(0, y, z)) {
+                        if adjacents
+                            .get_block(InnerChunkCoords::new(0, y, z))
+                            .is_none()
+                        {
                             visibility_map[coords.as_idx()][FaceDirection::PosX as usize] = true;
                         }
                     }
-                } else {
-                    if let None =
-                        request
-                            .requested_chunk
-                            .get_block(InnerChunkCoords::new(x + 1, y, z))
-                    {
-                        visibility_map[coords.as_idx()][FaceDirection::PosX as usize] = true;
-                    }
+                } else if request
+                    .requested_chunk
+                    .get_block(InnerChunkCoords::new(x + 1, y, z))
+                    .is_none()
+                {
+                    visibility_map[coords.as_idx()][FaceDirection::PosX as usize] = true;
                 }
 
                 // NegX
                 if x == 0 {
                     if let Some(ref adjacents) = request.neg_x_adj {
-                        if let None =
-                            adjacents.get_block(InnerChunkCoords::new(Chunk::SIZE - 1, y, z))
+                        if adjacents
+                            .get_block(InnerChunkCoords::new(Chunk::SIZE - 1, y, z))
+                            .is_none()
                         {
                             visibility_map[coords.as_idx()][FaceDirection::NegX as usize] = true;
                         }
                     }
-                } else {
-                    if let None =
-                        request
-                            .requested_chunk
-                            .get_block(InnerChunkCoords::new(x - 1, y, z))
-                    {
-                        visibility_map[coords.as_idx()][FaceDirection::NegX as usize] = true;
-                    }
+                } else if request
+                    .requested_chunk
+                    .get_block(InnerChunkCoords::new(x - 1, y, z))
+                    .is_none()
+                {
+                    visibility_map[coords.as_idx()][FaceDirection::NegX as usize] = true;
                 }
 
                 // PosY
                 if y == Chunk::SIZE - 1 {
                     if let Some(ref adjacents) = request.pos_y_adj {
-                        if let None = adjacents.get_block(InnerChunkCoords::new(x, 0, z)) {
+                        if adjacents
+                            .get_block(InnerChunkCoords::new(x, 0, z))
+                            .is_none()
+                        {
                             visibility_map[coords.as_idx()][FaceDirection::PosY as usize] = true;
                         }
                     }
-                } else {
-                    if let None =
-                        request
-                            .requested_chunk
-                            .get_block(InnerChunkCoords::new(x, y + 1, z))
-                    {
-                        visibility_map[coords.as_idx()][FaceDirection::PosY as usize] = true;
-                    }
+                } else if request
+                    .requested_chunk
+                    .get_block(InnerChunkCoords::new(x, y + 1, z))
+                    .is_none()
+                {
+                    visibility_map[coords.as_idx()][FaceDirection::PosY as usize] = true;
                 }
 
                 // NegY
                 if y == 0 {
                     if let Some(ref adjacents) = request.neg_y_adj {
-                        if let None =
-                            adjacents.get_block(InnerChunkCoords::new(x, Chunk::SIZE - 1, z))
+                        if adjacents
+                            .get_block(InnerChunkCoords::new(x, Chunk::SIZE - 1, z))
+                            .is_none()
                         {
                             visibility_map[coords.as_idx()][FaceDirection::NegY as usize] = true;
                         }
                     }
-                } else {
-                    if let None =
-                        request
-                            .requested_chunk
-                            .get_block(InnerChunkCoords::new(x, y - 1, z))
-                    {
-                        visibility_map[coords.as_idx()][FaceDirection::NegY as usize] = true;
-                    }
+                } else if request
+                    .requested_chunk
+                    .get_block(InnerChunkCoords::new(x, y - 1, z))
+                    .is_none()
+                {
+                    visibility_map[coords.as_idx()][FaceDirection::NegY as usize] = true;
                 }
 
                 // PosZ
                 if z == Chunk::SIZE - 1 {
                     if let Some(ref adjacents) = request.pos_z_adj {
-                        if let None = adjacents.get_block(InnerChunkCoords::new(x, y, 0)) {
+                        if adjacents
+                            .get_block(InnerChunkCoords::new(x, y, 0))
+                            .is_none()
+                        {
                             visibility_map[coords.as_idx()][FaceDirection::PosZ as usize] = true;
                         }
                     }
-                } else {
-                    if let None =
-                        request
-                            .requested_chunk
-                            .get_block(InnerChunkCoords::new(x, y, z + 1))
-                    {
-                        visibility_map[coords.as_idx()][FaceDirection::PosZ as usize] = true;
-                    }
+                } else if request
+                    .requested_chunk
+                    .get_block(InnerChunkCoords::new(x, y, z + 1))
+                    .is_none()
+                {
+                    visibility_map[coords.as_idx()][FaceDirection::PosZ as usize] = true;
                 }
 
                 // NegZ
                 if z == 0 {
                     if let Some(ref adjacents) = request.neg_z_adj {
-                        if let None =
-                            adjacents.get_block(InnerChunkCoords::new(x, y, Chunk::SIZE - 1))
+                        if adjacents
+                            .get_block(InnerChunkCoords::new(x, y, Chunk::SIZE - 1))
+                            .is_none()
                         {
                             visibility_map[coords.as_idx()][FaceDirection::NegZ as usize] = true;
                         }
                     }
-                } else {
-                    if let None =
-                        request
-                            .requested_chunk
-                            .get_block(InnerChunkCoords::new(x, y, z - 1))
-                    {
-                        visibility_map[coords.as_idx()][FaceDirection::NegZ as usize] = true;
-                    }
+                } else if request
+                    .requested_chunk
+                    .get_block(InnerChunkCoords::new(x, y, z - 1))
+                    .is_none()
+                {
+                    visibility_map[coords.as_idx()][FaceDirection::NegZ as usize] = true;
                 }
             }
         }
@@ -334,7 +334,7 @@ fn mesh_chunk(request: &MeshChunkRequest) -> ModelConstructor {
         for y in 0..Chunk::SIZE {
             for x in 0..Chunk::SIZE {
                 let coords = InnerChunkCoords::new(x, y, z);
-                if let None = request.requested_chunk.get_block(coords) {
+                if request.requested_chunk.get_block(coords).is_none() {
                     continue;
                 }
 

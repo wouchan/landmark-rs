@@ -8,6 +8,8 @@ mod rendererer;
 mod texture;
 mod transform;
 
+use std::sync::Arc;
+
 use camera::update_camera_sys;
 use game_loop::{
     game_loop,
@@ -147,7 +149,7 @@ impl Game {
 
         // Check if fullscreen should be enabled.
         if input_state.fullscreen {
-            if let None = window.fullscreen() {
+            if window.fullscreen().is_none() {
                 let monitor = window
                     .current_monitor()
                     .expect("Could not get a reference to the current monitor");
@@ -159,10 +161,8 @@ impl Game {
 
                 window.set_fullscreen(Some(Fullscreen::Exclusive(video_mode)));
             }
-        } else {
-            if let Some(_) = window.fullscreen() {
-                window.set_fullscreen(None);
-            }
+        } else if window.fullscreen().is_some() {
+            window.set_fullscreen(None);
         }
 
         true
@@ -177,6 +177,7 @@ pub fn run() {
         .with_title("Landmark")
         .build(&event_loop)
         .expect("Failed to create a window");
+    let window = Arc::new(window);
 
     let game = Game::init(&window);
 
