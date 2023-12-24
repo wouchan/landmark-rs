@@ -10,7 +10,7 @@ bytemuck = { version = "1.13.1", features = ["derive"] }
 game-loop = { version = "1.0.0", features = ["winit"] }
 glam = { version = "0.25.0", features = ["bytemuck"] }
 pollster = "0.3.0"
-wgpu = "0.17.0"
+wgpu = "0.18.0"
 
 shipyard = { workspace = true }
 env_logger = { workspace = true }

@@ -4,37 +4,10 @@ use shipyard::*;
 
 use crate::{
     color::Color,
-    game_map::{Chunk, ChunkCoords, InnerChunkCoords},
+    game_map::{Chunk, ChunkCoords, FaceDirection, InnerChunkCoords},
     model::{ModelConstructor, Vertex},
     transform::Transform,
 };
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum FaceDirection {
-    PosX,
-    NegX,
-    PosY,
-    NegY,
-    PosZ,
-    NegZ,
-}
-
-impl From<usize> for FaceDirection {
-    fn from(value: usize) -> Self {
-        match value {
-            0 => FaceDirection::PosX,
-            1 => FaceDirection::NegX,
-            2 => FaceDirection::PosY,
-            3 => FaceDirection::NegY,
-            4 => FaceDirection::PosZ,
-            5 => FaceDirection::NegZ,
-            _ => {
-                log::error!("Incorrect value passed as face direction: {value}, expected values from range 0 to 5");
-                panic!();
-            }
-        }
-    }
-}
 
 trait ModelConstructorChunkExt {
     fn add_block_face(&mut self, coords: InnerChunkCoords, face_dir: FaceDirection, color: Color);
@@ -164,12 +137,7 @@ impl MeshRequestsSender {
 pub struct MeshChunkRequest {
     pub requested_coords: ChunkCoords,
     pub requested_chunk: Chunk,
-    pub pos_x_adj: Option<Chunk>,
-    pub neg_x_adj: Option<Chunk>,
-    pub pos_y_adj: Option<Chunk>,
-    pub neg_y_adj: Option<Chunk>,
-    pub pos_z_adj: Option<Chunk>,
-    pub neg_z_adj: Option<Chunk>,
+    pub adjacent_chunks: Vec<Option<Chunk>>,
 }
 
 #[derive(Debug)]
@@ -195,7 +163,7 @@ pub fn chunk_mesher_loop(requests: Receiver<MeshChunkRequest>, output: Sender<Co
 type FaceVisibilityMap = Vec<[bool; 6]>;
 
 fn generate_visibility_map(request: &MeshChunkRequest) -> FaceVisibilityMap {
-    let mut visibility_map: FaceVisibilityMap = vec![[false; 6]; Chunk::BLOCKS_COUNT];
+    let mut visibility_map: FaceVisibilityMap = vec![[false; 6]; Chunk::BLOCKS_COUNT as usize];
 
     for z in 0..Chunk::SIZE {
         for y in 0..Chunk::SIZE {
@@ -206,112 +174,45 @@ fn generate_visibility_map(request: &MeshChunkRequest) -> FaceVisibilityMap {
                     continue;
                 }
 
-                // PosX
-                if x == Chunk::SIZE - 1 {
-                    if let Some(ref adjacents) = request.pos_x_adj {
-                        if adjacents
-                            .get_block(InnerChunkCoords::new(0, y, z))
-                            .is_none()
-                        {
-                            visibility_map[coords.as_idx()][FaceDirection::PosX as usize] = true;
-                        }
-                    }
-                } else if request
-                    .requested_chunk
-                    .get_block(InnerChunkCoords::new(x + 1, y, z))
-                    .is_none()
-                {
-                    visibility_map[coords.as_idx()][FaceDirection::PosX as usize] = true;
-                }
+                for face in 0..6 {
+                    let dir = FaceDirection::from(face);
 
-                // NegX
-                if x == 0 {
-                    if let Some(ref adjacents) = request.neg_x_adj {
-                        if adjacents
-                            .get_block(InnerChunkCoords::new(Chunk::SIZE - 1, y, z))
-                            .is_none()
-                        {
-                            visibility_map[coords.as_idx()][FaceDirection::NegX as usize] = true;
-                        }
-                    }
-                } else if request
-                    .requested_chunk
-                    .get_block(InnerChunkCoords::new(x - 1, y, z))
-                    .is_none()
-                {
-                    visibility_map[coords.as_idx()][FaceDirection::NegX as usize] = true;
-                }
+                    // Default values
+                    let mut checked_chunk: Option<&Chunk> = Some(&request.requested_chunk);
+                    let mut checked_coords = coords + dir.into();
 
-                // PosY
-                if y == Chunk::SIZE - 1 {
-                    if let Some(ref adjacents) = request.pos_y_adj {
-                        if adjacents
-                            .get_block(InnerChunkCoords::new(x, 0, z))
-                            .is_none()
-                        {
-                            visibility_map[coords.as_idx()][FaceDirection::PosY as usize] = true;
+                    // Edge cases when we need to check adjacent chunks
+                    if dir.is_positive() {
+                        if dir.is_x() && x == Chunk::SIZE - 1 {
+                            checked_coords = InnerChunkCoords::new(0, y, z);
+                            checked_chunk = request.adjacent_chunks[face].as_ref();
+                        } else if dir.is_y() && y == Chunk::SIZE - 1 {
+                            checked_coords = InnerChunkCoords::new(x, 0, z);
+                            checked_chunk = request.adjacent_chunks[face].as_ref();
+                        } else if dir.is_z() && z == Chunk::SIZE - 1 {
+                            checked_coords = InnerChunkCoords::new(x, y, 0);
+                            checked_chunk = request.adjacent_chunks[face].as_ref();
                         }
                     }
-                } else if request
-                    .requested_chunk
-                    .get_block(InnerChunkCoords::new(x, y + 1, z))
-                    .is_none()
-                {
-                    visibility_map[coords.as_idx()][FaceDirection::PosY as usize] = true;
-                }
 
-                // NegY
-                if y == 0 {
-                    if let Some(ref adjacents) = request.neg_y_adj {
-                        if adjacents
-                            .get_block(InnerChunkCoords::new(x, Chunk::SIZE - 1, z))
-                            .is_none()
-                        {
-                            visibility_map[coords.as_idx()][FaceDirection::NegY as usize] = true;
+                    if dir.is_negative() {
+                        if dir.is_x() && x == 0 {
+                            checked_coords = InnerChunkCoords::new(Chunk::SIZE - 1, y, z);
+                            checked_chunk = request.adjacent_chunks[face].as_ref();
+                        } else if dir.is_y() && y == 0 {
+                            checked_coords = InnerChunkCoords::new(x, Chunk::SIZE - 1, z);
+                            checked_chunk = request.adjacent_chunks[face].as_ref();
+                        } else if dir.is_z() && z == 0 {
+                            checked_coords = InnerChunkCoords::new(x, y, Chunk::SIZE - 1);
+                            checked_chunk = request.adjacent_chunks[face].as_ref();
                         }
                     }
-                } else if request
-                    .requested_chunk
-                    .get_block(InnerChunkCoords::new(x, y - 1, z))
-                    .is_none()
-                {
-                    visibility_map[coords.as_idx()][FaceDirection::NegY as usize] = true;
-                }
 
-                // PosZ
-                if z == Chunk::SIZE - 1 {
-                    if let Some(ref adjacents) = request.pos_z_adj {
-                        if adjacents
-                            .get_block(InnerChunkCoords::new(x, y, 0))
-                            .is_none()
-                        {
-                            visibility_map[coords.as_idx()][FaceDirection::PosZ as usize] = true;
+                    if let Some(chunk) = checked_chunk {
+                        if chunk.get_block(checked_coords).is_none() {
+                            visibility_map[coords.as_idx()][face] = true;
                         }
                     }
-                } else if request
-                    .requested_chunk
-                    .get_block(InnerChunkCoords::new(x, y, z + 1))
-                    .is_none()
-                {
-                    visibility_map[coords.as_idx()][FaceDirection::PosZ as usize] = true;
-                }
-
-                // NegZ
-                if z == 0 {
-                    if let Some(ref adjacents) = request.neg_z_adj {
-                        if adjacents
-                            .get_block(InnerChunkCoords::new(x, y, Chunk::SIZE - 1))
-                            .is_none()
-                        {
-                            visibility_map[coords.as_idx()][FaceDirection::NegZ as usize] = true;
-                        }
-                    }
-                } else if request
-                    .requested_chunk
-                    .get_block(InnerChunkCoords::new(x, y, z - 1))
-                    .is_none()
-                {
-                    visibility_map[coords.as_idx()][FaceDirection::NegZ as usize] = true;
                 }
             }
         }

@@ -1,5 +1,5 @@
 use core::fmt;
-use std::collections::HashMap;
+use std::{collections::HashMap, ops};
 
 use shipyard::*;
 
@@ -35,7 +35,10 @@ impl GameMap {
                         }
 
                         for by in 0..max_y {
-                            chunk.set_block(InnerChunkCoords::new(bx, by, bz), Some(0));
+                            chunk.set_block(
+                                InnerChunkCoords::new(bx as i32, by as i32, bz as i32),
+                                Some(0),
+                            );
                         }
                     }
                 }
@@ -69,11 +72,11 @@ pub struct Chunk {
 }
 
 impl Chunk {
-    pub const SIZE: usize = 32;
-    pub const BLOCKS_COUNT: usize = Chunk::SIZE * Chunk::SIZE * Chunk::SIZE;
+    pub const SIZE: i32 = 32;
+    pub const BLOCKS_COUNT: i32 = Chunk::SIZE * Chunk::SIZE * Chunk::SIZE;
 
     pub fn new() -> Self {
-        let blocks = vec![None; Chunk::BLOCKS_COUNT];
+        let blocks = vec![None; Chunk::BLOCKS_COUNT as usize];
 
         Self { blocks }
     }
@@ -114,29 +117,52 @@ impl fmt::Display for ChunkCoords {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct InnerChunkCoords {
-    x: usize,
-    y: usize,
-    z: usize,
+impl ops::Add for ChunkCoords {
+    type Output = Self;
+
+    fn add(self, rhs: Self) -> Self::Output {
+        Self {
+            x: self.x + rhs.x,
+            y: self.y + rhs.y,
+            z: self.z + rhs.z,
+        }
+    }
 }
 
-impl InnerChunkCoords {
-    pub fn new(x: usize, y: usize, z: usize) -> Self {
-        if x >= Chunk::SIZE || y >= Chunk::SIZE || z >= Chunk::SIZE {
-            log::error!(
-                "Inner chunk coords out of bounds: ({x}, {y}, {z}) with chunk size of {}",
-                Chunk::SIZE
-            );
+impl From<FaceDirection> for ChunkCoords {
+    fn from(value: FaceDirection) -> Self {
+        let (mut x, mut y, mut z) = (0, 0, 0);
 
-            panic!();
+        match value {
+            FaceDirection::PosX => x = 1,
+            FaceDirection::NegX => x = -1,
+            FaceDirection::PosY => y = 1,
+            FaceDirection::NegY => y = -1,
+            FaceDirection::PosZ => z = 1,
+            FaceDirection::NegZ => z = -1,
         }
 
         Self { x, y, z }
     }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct InnerChunkCoords {
+    x: i32,
+    y: i32,
+    z: i32,
+}
+
+impl InnerChunkCoords {
+    pub fn new(x: i32, y: i32, z: i32) -> Self {
+        Self { x, y, z }
+    }
 
     pub fn as_idx(&self) -> usize {
-        self.z * Chunk::SIZE * Chunk::SIZE + self.y * Chunk::SIZE + self.x
+        let (x, y, z) = (self.x as usize, self.y as usize, self.z as usize);
+        let chunk_size = Chunk::SIZE as usize;
+
+        z * chunk_size * chunk_size + y * chunk_size + x
     }
 
     pub fn as_block_center(&self) -> glam::Vec3 {
@@ -154,6 +180,112 @@ impl fmt::Display for InnerChunkCoords {
     }
 }
 
+impl ops::Add for InnerChunkCoords {
+    type Output = Self;
+
+    fn add(self, rhs: Self) -> Self::Output {
+        Self {
+            x: self.x + rhs.x,
+            y: self.y + rhs.y,
+            z: self.z + rhs.z,
+        }
+    }
+}
+
+impl From<FaceDirection> for InnerChunkCoords {
+    fn from(value: FaceDirection) -> Self {
+        let (mut x, mut y, mut z) = (0, 0, 0);
+
+        match value {
+            FaceDirection::PosX => x = 1,
+            FaceDirection::NegX => x = -1,
+            FaceDirection::PosY => y = 1,
+            FaceDirection::NegY => y = -1,
+            FaceDirection::PosZ => z = 1,
+            FaceDirection::NegZ => z = -1,
+        }
+
+        Self { x, y, z }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FaceDirection {
+    PosX,
+    NegX,
+    PosY,
+    NegY,
+    PosZ,
+    NegZ,
+}
+
+impl FaceDirection {
+    pub fn is_positive(self) -> bool {
+        match self {
+            FaceDirection::PosX => true,
+            FaceDirection::NegX => false,
+            FaceDirection::PosY => true,
+            FaceDirection::NegY => false,
+            FaceDirection::PosZ => true,
+            FaceDirection::NegZ => false,
+        }
+    }
+
+    pub fn is_negative(self) -> bool {
+        !self.is_positive()
+    }
+
+    pub fn is_x(self) -> bool {
+        match self {
+            FaceDirection::PosX => true,
+            FaceDirection::NegX => true,
+            FaceDirection::PosY => false,
+            FaceDirection::NegY => false,
+            FaceDirection::PosZ => false,
+            FaceDirection::NegZ => false,
+        }
+    }
+
+    pub fn is_y(self) -> bool {
+        match self {
+            FaceDirection::PosX => false,
+            FaceDirection::NegX => false,
+            FaceDirection::PosY => true,
+            FaceDirection::NegY => true,
+            FaceDirection::PosZ => false,
+            FaceDirection::NegZ => false,
+        }
+    }
+
+    pub fn is_z(self) -> bool {
+        match self {
+            FaceDirection::PosX => false,
+            FaceDirection::NegX => false,
+            FaceDirection::PosY => false,
+            FaceDirection::NegY => false,
+            FaceDirection::PosZ => true,
+            FaceDirection::NegZ => true,
+        }
+    }
+}
+
+impl From<usize> for FaceDirection {
+    fn from(value: usize) -> Self {
+        match value {
+            0 => FaceDirection::PosX,
+            1 => FaceDirection::NegX,
+            2 => FaceDirection::PosY,
+            3 => FaceDirection::NegY,
+            4 => FaceDirection::PosZ,
+            5 => FaceDirection::NegZ,
+            _ => {
+                log::error!("Incorrect value passed as face direction: {value}, expected values from range 0 to 5");
+                panic!();
+            }
+        }
+    }
+}
+
 pub fn mesh_missing_chunks_sys(
     requests: NonSync<UniqueView<MeshRequestsSender>>,
     game_map: UniqueView<GameMap>,
@@ -168,70 +300,18 @@ pub fn mesh_missing_chunks_sys(
         let requested_coords = chunk.coords;
         let requested_chunk = game_map.chunks.get(&requested_coords).unwrap().clone();
 
-        // TODO: this segment could be simplified a bit
-        let neg_x_adj = game_map
-            .chunks
-            .get(&ChunkCoords::new(
-                requested_coords.x - 1,
-                requested_coords.y,
-                requested_coords.z,
-            ))
-            .cloned();
+        let mut adjacent_chunks = Vec::with_capacity(6);
+        for face in 0..6 {
+            let dir = FaceDirection::from(face);
+            let offset = ChunkCoords::from(dir);
 
-        let pos_x_adj = game_map
-            .chunks
-            .get(&ChunkCoords::new(
-                requested_coords.x + 1,
-                requested_coords.y,
-                requested_coords.z,
-            ))
-            .cloned();
-
-        let neg_y_adj = game_map
-            .chunks
-            .get(&ChunkCoords::new(
-                requested_coords.x,
-                requested_coords.y - 1,
-                requested_coords.z,
-            ))
-            .cloned();
-
-        let pos_y_adj = game_map
-            .chunks
-            .get(&ChunkCoords::new(
-                requested_coords.x,
-                requested_coords.y + 1,
-                requested_coords.z,
-            ))
-            .cloned();
-
-        let neg_z_adj = game_map
-            .chunks
-            .get(&ChunkCoords::new(
-                requested_coords.x,
-                requested_coords.y,
-                requested_coords.z - 1,
-            ))
-            .cloned();
-
-        let pos_z_adj = game_map
-            .chunks
-            .get(&ChunkCoords::new(
-                requested_coords.x,
-                requested_coords.y,
-                requested_coords.z + 1,
-            ))
-            .cloned();
+            adjacent_chunks.push(game_map.chunks.get(&(requested_coords + offset)).cloned());
+        }
 
         let request = MeshChunkRequest {
             requested_coords,
             requested_chunk,
-            neg_x_adj,
-            pos_x_adj,
-            neg_y_adj,
-            pos_y_adj,
-            neg_z_adj,
-            pos_z_adj,
+            adjacent_chunks,
         };
 
         requests.chunks.send(request).unwrap();
