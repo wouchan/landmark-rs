@@ -3,7 +3,7 @@ use std::{collections::HashMap, ops};
 
 use shipyard::*;
 
-use crate::mesher::{MeshChunkRequest, MeshRequestsSender};
+use crate::model::MissingModel;
 
 pub type BlockId = u32;
 
@@ -34,11 +34,10 @@ impl GameMap {
                             max_y += 1;
                         }
 
+                        let block: u32 = (bx + bz) as u32 % 3;
+
                         for by in 0..max_y {
-                            chunk.set_block(
-                                InnerChunkCoords::new(bx as i32, by as i32, bz as i32),
-                                Some(0),
-                            );
+                            chunk.set_block(InnerChunkCoords::new(bx, by, bz), Some(block));
                         }
                     }
                 }
@@ -46,7 +45,7 @@ impl GameMap {
                 chunks.insert(coords, chunk);
                 chunk_entity_map.insert(
                     coords,
-                    world.add_entity((ChunkTag { coords }, MissingChunkModel)),
+                    world.add_entity((ChunkTag { coords }, MissingModel)),
                 );
             }
         }
@@ -63,10 +62,7 @@ pub struct ChunkTag {
     pub coords: ChunkCoords,
 }
 
-#[derive(Debug, Clone, Copy, Component)]
-pub struct MissingChunkModel;
-
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct Chunk {
     blocks: Vec<Option<BlockId>>,
 }
@@ -283,41 +279,5 @@ impl From<usize> for FaceDirection {
                 panic!();
             }
         }
-    }
-}
-
-pub fn mesh_missing_chunks_sys(
-    requests: NonSync<UniqueView<MeshRequestsSender>>,
-    game_map: UniqueView<GameMap>,
-    chunks: View<ChunkTag>,
-    mut missing_models: ViewMut<MissingChunkModel>,
-) {
-    let mut processed_chunks: Vec<EntityId> = Vec::new();
-
-    for (id, (chunk, _)) in (&chunks, &missing_models).iter().with_id() {
-        processed_chunks.push(id);
-
-        let requested_coords = chunk.coords;
-        let requested_chunk = game_map.chunks.get(&requested_coords).unwrap().clone();
-
-        let mut adjacent_chunks = Vec::with_capacity(6);
-        for face in 0..6 {
-            let dir = FaceDirection::from(face);
-            let offset = ChunkCoords::from(dir);
-
-            adjacent_chunks.push(game_map.chunks.get(&(requested_coords + offset)).cloned());
-        }
-
-        let request = MeshChunkRequest {
-            requested_coords,
-            requested_chunk,
-            adjacent_chunks,
-        };
-
-        requests.chunks.send(request).unwrap();
-    }
-
-    for id in processed_chunks.into_iter() {
-        missing_models.delete(id);
     }
 }

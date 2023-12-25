@@ -11,7 +11,10 @@ game-loop = { version = "1.0.0", features = ["winit"] }
 glam = { version = "0.25.0", features = ["bytemuck"] }
 pollster = "0.3.0"
 wgpu = "0.18.0"
+texture_packer = "0.27.0"
 
 shipyard = { workspace = true }
+serde = { workspace = true }
 env_logger = { workspace = true }
 log = { workspace = true }
+ron = { workspace = true }

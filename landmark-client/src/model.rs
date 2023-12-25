@@ -1,12 +1,8 @@
-use std::sync::mpsc::{self, Receiver, Sender};
-
 use shipyard::*;
 use wgpu::util::DeviceExt;
 
 use crate::{
     color::RawColor,
-    game_map::GameMap,
-    mesher::ConstructedChunk,
     rendererer::Renderer,
     transform::{RawTransform, Transform},
 };
@@ -59,7 +55,7 @@ pub struct Model {
 }
 
 impl Model {
-    pub fn new(device: &wgpu::Device, model_constructor: ModelConstructor) -> Self {
+    pub fn new(device: &wgpu::Device, model_constructor: &ModelConstructor) -> Self {
         let vertex_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: None,
             contents: bytemuck::cast_slice(&model_constructor.vertices),
@@ -80,8 +76,8 @@ impl Model {
         });
 
         Self {
-            _vertices: model_constructor.vertices,
-            indices: model_constructor.indices,
+            _vertices: model_constructor.vertices.clone(),
+            indices: model_constructor.indices.clone(),
             _transform: model_constructor.transform,
             vertex_buffer,
             index_buffer,
@@ -94,39 +90,26 @@ impl Model {
     }
 }
 
-#[derive(Debug, Unique)]
-pub struct ConstructedModelsReceiver {
-    pub chunks: Receiver<ConstructedChunk>,
-}
+#[derive(Debug, Clone, Copy, Component)]
+pub struct MissingModel;
 
-impl ConstructedModelsReceiver {
-    pub fn init() -> (Self, Sender<ConstructedChunk>) {
-        let chunks_channel: (Sender<ConstructedChunk>, Receiver<ConstructedChunk>) =
-            mpsc::channel();
-
-        (
-            Self {
-                chunks: chunks_channel.1,
-            },
-            chunks_channel.0,
-        )
-    }
-}
+#[derive(Debug, Component)]
+pub struct UpdatedModel(pub ModelConstructor);
 
 pub fn update_models_sys(
-    requests: NonSync<UniqueView<ConstructedModelsReceiver>>,
-    game_map: UniqueView<GameMap>,
     renderer: UniqueView<Renderer>,
     mut models: ViewMut<Model>,
+    mut updated_models: ViewMut<UpdatedModel>,
 ) {
-    while let Ok(constructed_chunk) = requests.chunks.try_recv() {
-        let id = game_map
-            .chunk_entity_map
-            .get(&constructed_chunk.coords)
-            .unwrap_or_else(|| { log::error!("Request to update chunk model with coordinates {} received, but chunk entity not present", constructed_chunk.coords); panic!(); }
-        );
+    let mut processed_models: Vec<EntityId> = Vec::new();
 
-        let model = Model::new(&renderer.device, constructed_chunk.model_constructor);
-        models.add_component_unchecked(*id, model);
+    for (id, updated_model) in updated_models.iter().with_id() {
+        let model = Model::new(&renderer.device, &updated_model.0);
+        models.add_component_unchecked(id, model);
+        processed_models.push(id);
+    }
+
+    for id in processed_models.into_iter() {
+        updated_models.delete(id);
     }
 }

@@ -1,11 +1,10 @@
-use std::sync::mpsc::{self, Receiver, Sender};
-
 use shipyard::*;
 
 use crate::{
     color::Color,
-    game_map::{Chunk, ChunkCoords, FaceDirection, InnerChunkCoords},
-    model::{ModelConstructor, Vertex},
+    game_map::{Chunk, ChunkCoords, ChunkTag, FaceDirection, GameMap, InnerChunkCoords},
+    loader::ResourceDictionary,
+    model::{MissingModel, ModelConstructor, UpdatedModel, Vertex},
     transform::Transform,
 };
 
@@ -114,48 +113,54 @@ impl ModelConstructorChunkExt for ModelConstructor {
     }
 }
 
-#[derive(Debug, Unique)]
-pub struct MeshRequestsSender {
-    pub chunks: Sender<MeshChunkRequest>,
-}
-
-impl MeshRequestsSender {
-    pub fn init() -> (Self, Receiver<MeshChunkRequest>) {
-        let chunks_channel: (Sender<MeshChunkRequest>, Receiver<MeshChunkRequest>) =
-            mpsc::channel();
-
-        (
-            Self {
-                chunks: chunks_channel.0,
-            },
-            chunks_channel.1,
-        )
-    }
-}
-
-#[derive(Debug)]
-pub struct MeshChunkRequest {
-    pub requested_coords: ChunkCoords,
-    pub requested_chunk: Chunk,
-    pub adjacent_chunks: Vec<Option<Chunk>>,
-}
-
 #[derive(Debug)]
 pub struct ConstructedChunk {
     pub coords: ChunkCoords,
     pub model_constructor: ModelConstructor,
 }
 
-pub fn chunk_mesher_loop(requests: Receiver<MeshChunkRequest>, output: Sender<ConstructedChunk>) {
-    while let Ok(request) = requests.recv() {
-        let model_constructor = mesh_chunk(&request);
+#[derive(Debug, Clone)]
+pub struct MeshChunkRequest<'a> {
+    pub requested_coords: ChunkCoords,
+    pub requested_chunk: &'a Chunk,
+    pub adjacent_chunks: Vec<Option<&'a Chunk>>,
+}
 
-        output
-            .send(ConstructedChunk {
-                coords: request.requested_coords,
-                model_constructor,
-            })
-            .unwrap();
+pub fn chunk_mesher_sys(
+    game_map: UniqueView<GameMap>,
+    resource_dictionary: UniqueView<ResourceDictionary>,
+    chunks: View<ChunkTag>,
+    mut missing_models: ViewMut<MissingModel>,
+    mut updated_models: ViewMut<UpdatedModel>,
+) {
+    let mut processed_chunks: Vec<(EntityId, ModelConstructor)> = Vec::new();
+
+    for (id, (chunk, _)) in (&chunks, &missing_models).iter().with_id() {
+        let requested_coords = chunk.coords;
+        let requested_chunk = game_map.chunks.get(&requested_coords).unwrap();
+
+        let mut adjacent_chunks = Vec::with_capacity(6);
+        for face in 0..6 {
+            let dir = FaceDirection::from(face);
+            let offset = ChunkCoords::from(dir);
+
+            adjacent_chunks.push(game_map.chunks.get(&(requested_coords + offset)));
+        }
+
+        let request = MeshChunkRequest {
+            requested_coords,
+            requested_chunk,
+            adjacent_chunks,
+        };
+
+        let model_constructor = mesh_chunk(&request, &resource_dictionary);
+
+        processed_chunks.push((id, model_constructor));
+    }
+
+    for (id, model_constructor) in processed_chunks.into_iter() {
+        missing_models.delete(id);
+        updated_models.add_component_unchecked(id, UpdatedModel(model_constructor))
     }
 }
 
@@ -178,33 +183,33 @@ fn generate_visibility_map(request: &MeshChunkRequest) -> FaceVisibilityMap {
                     let dir = FaceDirection::from(face);
 
                     // Default values
-                    let mut checked_chunk: Option<&Chunk> = Some(&request.requested_chunk);
+                    let mut checked_chunk: Option<&Chunk> = Some(request.requested_chunk);
                     let mut checked_coords = coords + dir.into();
 
                     // Edge cases when we need to check adjacent chunks
                     if dir.is_positive() {
                         if dir.is_x() && x == Chunk::SIZE - 1 {
                             checked_coords = InnerChunkCoords::new(0, y, z);
-                            checked_chunk = request.adjacent_chunks[face].as_ref();
+                            checked_chunk = request.adjacent_chunks[face];
                         } else if dir.is_y() && y == Chunk::SIZE - 1 {
                             checked_coords = InnerChunkCoords::new(x, 0, z);
-                            checked_chunk = request.adjacent_chunks[face].as_ref();
+                            checked_chunk = request.adjacent_chunks[face];
                         } else if dir.is_z() && z == Chunk::SIZE - 1 {
                             checked_coords = InnerChunkCoords::new(x, y, 0);
-                            checked_chunk = request.adjacent_chunks[face].as_ref();
+                            checked_chunk = request.adjacent_chunks[face];
                         }
                     }
 
                     if dir.is_negative() {
                         if dir.is_x() && x == 0 {
                             checked_coords = InnerChunkCoords::new(Chunk::SIZE - 1, y, z);
-                            checked_chunk = request.adjacent_chunks[face].as_ref();
+                            checked_chunk = request.adjacent_chunks[face];
                         } else if dir.is_y() && y == 0 {
                             checked_coords = InnerChunkCoords::new(x, Chunk::SIZE - 1, z);
-                            checked_chunk = request.adjacent_chunks[face].as_ref();
+                            checked_chunk = request.adjacent_chunks[face];
                         } else if dir.is_z() && z == 0 {
                             checked_coords = InnerChunkCoords::new(x, y, Chunk::SIZE - 1);
-                            checked_chunk = request.adjacent_chunks[face].as_ref();
+                            checked_chunk = request.adjacent_chunks[face];
                         }
                     }
 
@@ -221,7 +226,10 @@ fn generate_visibility_map(request: &MeshChunkRequest) -> FaceVisibilityMap {
     visibility_map
 }
 
-fn mesh_chunk(request: &MeshChunkRequest) -> ModelConstructor {
+fn mesh_chunk(
+    request: &MeshChunkRequest,
+    resource_dictionary: &ResourceDictionary,
+) -> ModelConstructor {
     let mut model_constructor = ModelConstructor::new();
 
     model_constructor.transform = Transform {
@@ -235,19 +243,13 @@ fn mesh_chunk(request: &MeshChunkRequest) -> ModelConstructor {
         for y in 0..Chunk::SIZE {
             for x in 0..Chunk::SIZE {
                 let coords = InnerChunkCoords::new(x, y, z);
-                if request.requested_chunk.get_block(coords).is_none() {
-                    continue;
-                }
 
-                for face in 0..6 {
-                    if visibility_map[coords.as_idx()][face] {
-                        let color = if (x + z) % 2 == 0 {
-                            Color::new(16, 200, 16)
-                        } else {
-                            Color::new(16, 164, 16)
-                        };
-
-                        model_constructor.add_block_face(coords, face.into(), color);
+                if let Some(block) = request.requested_chunk.get_block(coords) {
+                    for face in 0..6 {
+                        if visibility_map[coords.as_idx()][face] {
+                            let color = resource_dictionary.get_block_data_from_id(block).color;
+                            model_constructor.add_block_face(coords, face.into(), color);
+                        }
                     }
                 }
             }

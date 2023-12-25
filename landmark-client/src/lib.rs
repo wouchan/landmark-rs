@@ -1,7 +1,9 @@
+mod block;
 mod camera;
 mod color;
 mod game_map;
 mod input;
+mod loader;
 mod mesher;
 mod model;
 mod rendererer;
@@ -19,9 +21,10 @@ use game_loop::{
         window::{CursorGrabMode, Fullscreen, Window, WindowBuilder},
     },
 };
-use game_map::{mesh_missing_chunks_sys, GameMap};
-use mesher::{chunk_mesher_loop, MeshRequestsSender};
-use model::{update_models_sys, ConstructedModelsReceiver};
+use game_map::GameMap;
+use loader::ResourceDictionary;
+use mesher::chunk_mesher_sys;
+use model::update_models_sys;
 use shipyard::*;
 
 use input::*;
@@ -36,29 +39,32 @@ impl Game {
     pub fn init(window: &Window) -> Self {
         let mut world = World::new();
 
+        let resource_dictionary = ResourceDictionary::new();
+
         let (renderer, camera) = pollster::block_on(Renderer::init(window));
 
         let game_map = GameMap::new_test(&mut world);
 
+        world.add_unique(resource_dictionary);
         world.add_unique(renderer);
         world.add_unique(camera);
         world.add_unique(game_map);
         world.add_unique(InputState::default());
 
         // TODO: simplify meshing
-        let (mesh_requests_sender, chunk_mesh_requests_receiver) = MeshRequestsSender::init();
-        let (constructed_models_receiver, constructed_chunk_sender) =
-            ConstructedModelsReceiver::init();
+        // let (mesh_requests_sender, chunk_mesh_requests_receiver) = MeshRequestsSender::init();
+        // let (constructed_models_receiver, constructed_chunk_sender) =
+        //     ConstructedModelsReceiver::init();
 
-        world.add_unique_non_sync(mesh_requests_sender);
-        world.add_unique_non_sync(constructed_models_receiver);
-        std::thread::spawn(|| {
-            chunk_mesher_loop(chunk_mesh_requests_receiver, constructed_chunk_sender)
-        });
+        // world.add_unique_non_sync(mesh_requests_sender);
+        // world.add_unique_non_sync(constructed_models_receiver);
+        // std::thread::spawn(|| {
+        //     chunk_mesher_loop(chunk_mesh_requests_receiver, constructed_chunk_sender)
+        // });
 
         Workload::new("update")
             .with_system(move_player_sys)
-            .with_system(mesh_missing_chunks_sys)
+            .with_system(chunk_mesher_sys)
             .add_to_world(&world)
             .unwrap();
 
