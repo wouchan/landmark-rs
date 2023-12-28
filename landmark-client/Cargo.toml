@@ -18,3 +18,4 @@ serde = { workspace = true }
 env_logger = { workspace = true }
 log = { workspace = true }
 ron = { workspace = true }
+anyhow = { workspace = true }

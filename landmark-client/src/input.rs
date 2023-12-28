@@ -76,10 +76,11 @@ pub fn mouse_input_sys(
 
     let mut new_pitch = camera.pitch + dy as f32 * SENSITIVITY;
 
-    if new_pitch > 90.0 {
-        new_pitch = 90.0;
-    } else if new_pitch < -90.0 {
-        new_pitch = -90.0;
+    // using 89 instead of 90 because of problems with view matrix
+    if new_pitch > 89.0 {
+        new_pitch = 89.0;
+    } else if new_pitch < -89.0 {
+        new_pitch = -89.0;
     }
 
     camera.pitch = new_pitch;

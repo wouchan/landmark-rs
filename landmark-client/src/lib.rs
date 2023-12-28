@@ -51,17 +51,6 @@ impl Game {
         world.add_unique(game_map);
         world.add_unique(InputState::default());
 
-        // TODO: simplify meshing
-        // let (mesh_requests_sender, chunk_mesh_requests_receiver) = MeshRequestsSender::init();
-        // let (constructed_models_receiver, constructed_chunk_sender) =
-        //     ConstructedModelsReceiver::init();
-
-        // world.add_unique_non_sync(mesh_requests_sender);
-        // world.add_unique_non_sync(constructed_models_receiver);
-        // std::thread::spawn(|| {
-        //     chunk_mesher_loop(chunk_mesh_requests_receiver, constructed_chunk_sender)
-        // });
-
         Workload::new("update")
             .with_system(move_player_sys)
             .with_system(chunk_mesher_sys)
